@@ -177,40 +177,43 @@ class E : public C { };        class I : public H { };
 #define CONCAT(x, y) (x ## y)
 #define MSG "ERROR at line " STR(__LINE__)
 // ==============================================================
+#define _WRAP_PASTE(x,y) x##y
+#define _MERGE(x,y) _WRAP_PASTE(x,y)
+#define _UNIQUE_UNUSED _MERGE(unused, __COUNTER__)
+// ==============================================================
 
-/* Init the system: */
-/* 1.- Grab the current __COUNTER__ and generate the initial temporary registry typelist*/
+
 namespace tmp {
-    template<typename> struct start;
-    template<>         struct start<size_t> : std::integral_constant<size_t, __COUNTER__> { };
-    template<size_t> struct building_typelist;
-    template<> struct building_typelist<start<size_t>::value> {
+
+    // Capture the current __COUNTER__ and create the "typelist_in_progress"
+    template<typename> struct initial_counter;
+    template<>         struct initial_counter<size_t> : std::integral_constant<size_t, __COUNTER__> { };
+    template<size_t> struct typelist_in_progress;
+    template<> struct typelist_in_progress<initial_counter<size_t>::value> {
         using type = tmp::typelist<>;
     };
-}
 
-namespace tmp {
-
+    // Check if a class is defined or not
     template <typename T, size_t = sizeof(T)>
     auto is_class_complete(T*)  -> std::true_type;
     constexpr auto is_class_complete(...) -> std::false_type;
-
     template <size_t I>
-    using is_defined = decltype(is_class_complete(std::declval<building_typelist<I>*>()));
+    using is_defined = decltype(is_class_complete(std::declval<typelist_in_progress<I>*>()));
 
+    // Select the current typelist at index "I"
     template<size_t I, bool = std::is_same<std::true_type, is_defined<I>>::value>
-    struct select_current_types;
+    struct select_types_at;
 
     template<size_t I>
-    struct select_current_types<I, true> {
-        using type = typename building_typelist<I>::type;
+    struct select_types_at<I, true> {
+        using type = typename typelist_in_progress<I>::type;
     };
 
     template<size_t I>
-    struct select_current_types<I, false> {
+    struct select_types_at<I, false> {
         using type = typename std::conditional< 
-            (I > start<size_t>::value),     // Are there more specializations to check?
-            typename select_current_types<I-1>::type, // yes
+            (I > initial_counter<size_t>::value),     // Are there more specializations to check?
+            typename select_types_at<I-1>::type, // yes
             tmp::typelist<>                 // no => failed => empty typelist
         >::type;
     };
@@ -218,45 +221,69 @@ namespace tmp {
 }
 
 #define _REGISTER(_class, _idx)\
+    /* Define the current typelist at index _idx */\
     template<>\
-    struct building_typelist<_idx> {\
-        using previous = typename tmp::select_current_types<_idx-1>::type;\
+    struct typelist_in_progress<_idx> {\
+        using previous = typename tmp::select_types_at<_idx-1>::type;\
         using type = typename tmp::push_back<_class, previous>::type;\
     }
 
 #define REGISTER(_class) _REGISTER(_class, __COUNTER__)
-
-#define CURRENT_TYPELIST typename select_current_types<__COUNTER__>::type
+#define CURRENT_TYPELIST typename select_types_at<__COUNTER__>::type
+#define SERIALIZE(_instance) hierarchy_iterator<find_ancestors<CURRENT_TYPELIST, decltype(_instance)>::type>::exec(&_instance)
+#define NOISE auto _UNIQUE_UNUSED = __COUNTER__
 
 REGISTER(I);
-REGISTER(E);
-auto T0 = __COUNTER__;
+NOISE;
 REGISTER(C);
-REGISTER(D);
-REGISTER(B);
-auto T1 = __COUNTER__;
-REGISTER(F);
-REGISTER(H);
+REGISTER(Z);
+NOISE;
+NOISE;
 REGISTER(G);
-auto T2 = __COUNTER__;
-auto T3 = __COUNTER__;
-auto T4 = __COUNTER__;
-auto T5 = __COUNTER__;
-auto T6 = __COUNTER__;
-auto T7 = __COUNTER__;
+NOISE;
+NOISE;
+REGISTER(D);
+REGISTER(F);
+REGISTER(L);
+NOISE;
+NOISE;
+REGISTER(C);
+NOISE;
+REGISTER(I);
+NOISE;
 REGISTER(A);
-
+NOISE;
+REGISTER(T);
+REGISTER(B);
+REGISTER(J);
+REGISTER(K);
+NOISE;
+NOISE;
+NOISE;
+NOISE;
+NOISE;
+REGISTER(H);
+REGISTER(E);
+REGISTER(E);
 
 int main()
 {
     using namespace std;
     using namespace tmp;
 
-    static_assert(is_same<CURRENT_TYPELIST,                          typelist<I,E,C,D,B,F,H,G,A>>::value, MSG);
-    static_assert(is_same<find_ancestors<CURRENT_TYPELIST, D>::type, typelist<A, C, D>>::value,           MSG);
+    static_assert(is_same<CURRENT_TYPELIST,                          typelist<I, C, Z, G, D, F, L, C, I, A, T, B, J, K, H, E, E>>::value, MSG);
+    static_assert(is_same<find_ancestors<CURRENT_TYPELIST, D>::type, typelist<A, C, D>>::value,                                           MSG);
+    static_assert(is_same<find_ancestors<CURRENT_TYPELIST, K>::type, typelist<F, H, J, I, K>>::value,                                     MSG);
 
     D d_instance;
-    hierarchy_iterator<find_ancestors<CURRENT_TYPELIST, D>::type>::exec(&d_instance);
+    SERIALIZE(d_instance);
+
+    printf("\n\n");
+
+    K k_instance;
+    SERIALIZE(k_instance);
 
     return 0;
 }
+
+
