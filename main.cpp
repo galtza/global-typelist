@@ -222,10 +222,12 @@ namespace tmp {
 
 #define _REGISTER(_class, _idx)\
     /* Define the current typelist at index _idx */\
-    template<>\
-    struct typelist_in_progress<_idx> {\
-        using previous = typename tmp::select_types_at<_idx-1>::type;\
-        using type = typename tmp::push_back<_class, previous>::type;\
+    namespace tmp {\
+        template<>\
+        struct typelist_in_progress<_idx> {\
+            using previous = typename select_types_at<_idx-1>::type;\
+            using type = typename push_back<_class, previous>::type;\
+        };\
     }
 
 #define REGISTER(_class) _REGISTER(_class, __COUNTER__)
