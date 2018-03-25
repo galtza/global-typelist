@@ -97,20 +97,20 @@ ADD_TL(registry, E);
 
 int main()
 {
-    //using namespace std;
-    //using namespace tmp;
+    using namespace std;
+    using namespace tmp;
 
-    //static_assert(is_same<READ_TL(registry),                          typelist<I, C, Z, G, D, F, L, C, I, A, T, B, J, K, H, E, E>>::value, MSG);
-    //static_assert(is_same<find_ancestors<READ_TL(registry), D>::type, typelist<A, C, D>>::value,                                           MSG);
-    //static_assert(is_same<find_ancestors<READ_TL(registry), K>::type, typelist<F, H, J, I, K>>::value,                                     MSG);
+    static_assert(is_same<READ_TL(registry),                          typelist<I, C, Z, G, D, F, L, C, I, A, T, B, J, K, H, E, E>>::value, MSG);
+    static_assert(is_same<find_ancestors<READ_TL(registry), D>::type, typelist<A, C, D>>::value,                                           MSG);
+    static_assert(is_same<find_ancestors<READ_TL(registry), K>::type, typelist<F, H, J, I, K>>::value,                                     MSG);
 
-    //D d_instance;
-    //SERIALIZE(d_instance, READ_TL(registry));
+    D d_instance;
+    SERIALIZE(d_instance, READ_TL(registry));
 
-    //printf("\n\n");
+    printf("\n\n");
 
-    //K k_instance;
-    //SERIALIZE(k_instance, READ_TL(registry));
+    K k_instance;
+    SERIALIZE(k_instance, READ_TL(registry));
 
     return 0;
 }
