@@ -34,7 +34,6 @@ In any common imperative programming language, we are used to **declare**, **mod
 #include <vector>
 
 std::vector<int> g_list;
-
 int main () {
     g_list.push_back(1);
     g_list.push_back(3);
@@ -43,7 +42,7 @@ int main () {
 }
 ```
 
-In this piece of code, among others things, we **declare** a variable named *g_list*, we **modify** it by using *push_back* and we **read** the content that then we assign to another variable. 
+In this piece of code we **declare** a variable named *g_list*, we **modify** it by using *push_back* and we **read** the content that then we assign to another variable. 
 
 In the context of templates, the name "variable" is a bit misleading as, due to its functional nature, there are no side effects, so all things are immutable. Nevertheless, for the sake of argument, we will continue using it but with *meta* as a prefix.
 
@@ -76,9 +75,9 @@ template<> struct a_history<0> {
 };
 ```
 
-This is a history wrapper for a meta-variable called ***a*** that will hold a *type list*. In the declaration, the non-type template parameter IDX is the index in the history of the meta-variable.  We have a specialization for **initializing** the history with the initial value (index 0) which will be an empty *type list* for us.
+This is the **history wrapper** for a meta-variable called ***a*** that will hold a *type list*. In the declaration, the non-type template parameter IDX is the index in the history of the meta-variable. For each new value we will need a new specialization with IDX higher than the previous one. The initial value corresponds to the index 0 and it is an empty *type list*. 
 
-If we would want to add the types that we wanted in the previous example, we would do the following:
+If we would want to add 3 new elements to the meta-variable, we will need 3 new specializations, with index 1, 2 and 3 respectively:
 
 ```c++
 template<> struct a_history<1> {
@@ -92,13 +91,17 @@ template<> struct a_history<3> {
 };
 ```
 
-Obviously, this is not very useful yet. We have the problem of how to avoid having to use the IDX every time we want to change a meta-variable and, as well, how to access to the actual value. In order to solve this problem we have to turn to the preprocessor and specifically to a non-standard but fortunately very common macro called `__COUNTER__`. 
+Each new entry makes use of the previous entry in the history so that we can *push_back* our new type.
+
+Obviously, this is not very useful yet. We need a way to automatically refer to the previous entry and also a way to automatically generate the latest index to add to. 
+
+In order to solve this problem we have to turn to the preprocessor and specifically to a non-standard but fortunately very common macro called `__COUNTER__`. 
 
 Quoted form [Clang documentation](https://clang.llvm.org/docs/LanguageExtensions.html#builtin-macros): 
 
 > *`__COUNTER__` Defined to an integer value that starts at zero and is incremented each time the `__COUNTER__` macro is expanded*
 
-So, the declaration of a *type list* meta-variable that makes use of `__COUNTER__` would be like this:
+So, the **declaration** of a *type list* meta-variable that makes use of `__COUNTER__` would be like this:
 ```c++
 #define DECLARE_TL(_name)\
     /* Declare the type list meta-variable and initialize with an empty list */\
@@ -110,7 +113,7 @@ So, the declaration of a *type list* meta-variable that makes use of `__COUNTER_
     }
 ```
 
-There will be a type named `_name##_history` that will have one specialization per history entry. Notice that with the declaration we specify a specialization for the initial value that needs to be associated to the actual value of `__COUNTER__` at the time the macro is invoked. This is done this way because obviously we cannot assure that `__COUNTER__` has not been called previously. 
+Notice that the specialization for the initial value is associated to the index `__COUNTER__` instead of the 0 from previous examples (obviously we cannot assure that `__COUNTER__` has not been called previously, hence the value might be different from 0). 
 
 In order to declare a *type list* by using this macro, we do:
 
@@ -120,15 +123,15 @@ DECLARE_TL(meta_variable_2);
 ...
 ```
 
-The access macro is as follows:
+To **read** the latest value of the meta-class we can use the following macro:
 
 ```c++
 #define READ_TL(_name) typename _name##_history<__COUNTER__ - 1>::type
 ```
 
-Notice that we need to substract 1 to the `__COUNTER__` macro because it is post-incremented after been used, which means that if we are defining the specialization number `i`, after the macro invocation, the latest is `i` but by invoking `__COUNTER__` we sould be accessing to the next one.
+Notice that we need to subtract 1 to `__COUNTER__`  because it is a post-incremented macro so that after it has been used it changes the value: before invocation `i` and after invocation `i + 1`.
 
-Finally, the macro to add one new type to the meta-variable could be written like this:
+Finally, one possible macro to **modify** the meta-variable by adding a new type to the *type list* could be written like this:
 
 ```c++
 #define _ADD_TL(_name, _class, _idx)\
@@ -143,7 +146,7 @@ Finally, the macro to add one new type to the meta-variable could be written lik
 
 We create a new specialization for the new index (`__COUNTER__`), but we need to invoke it only once otherwise we would be creating holes. That is the reason that we need an auxiliary macro to do the job: `ADD_TL` grabs the new index from `__COUNTER__` and passes it to the auxiliar macro `_ADD_TL`.
 
-Then, inside `_ADD_TL` we grab the previous value and use it to add a new type. An example of usage could be this:
+Then, inside `_ADD_TL` we grab the previous history entry and we use it to add a new type to the list. An example of usage could be this:
 
 ```c++
 DECLARE_TL(registry);
@@ -157,24 +160,26 @@ int main () {
 }
 ```
 
-This just works. The invocations `ADD_TL` could be classes being registered along the code. 
+This just works. The invocations to `ADD_TL` could be just classes being registered along the code. 
 
-## It works, but...
+## It works, does it?
 
-Maybe you noticed that there are some flaws:
+Maybe you noticed that there are some flaws in this implementation:
 
 - multiple `READ_TL` invocations do not work
 - Invocations to `__COUNTER__` between any of the macros do not work
 
-Both problems are related to the creation of *holes* in the history of a meta-variable. As we call `READ_TL`, we invoke `__COUNTER__`, hence the next time we call it will try to point to a different, unexistent specialization, hence, not compiling. The same will happen if between modifications of the *type list* we invoke `__COUNTER__` because the macro `ADD_TL` will try to grab the previous history entry.
+Both problems are related to the creation of *holes* in the history of a meta-variable. As we call `READ_TL`, we invoke `__COUNTER__` that will increase the value of the counter, hence the next time we try to read the meta-variable, we will use an index that does not exist.
+
+The same problem will happen if we invoke `__COUNTER__` between calls to `ADD_TL`, because it will try to grab the previous history entry.
 
 Nevertheless, there is a solution which is **allowing holes**.
 
-When we specialise for index `x`, there is a type `template<> struct variable_history<x>;` defined. If we try to access to `variable_history<y>` but `y` was not used, that type will not be declared nor defined: there is a hole. We will need a mechanism do differenciate between those two cases.
+We need to modify the reading operation so that it skips the holes backwards towards the beginning of the history.
 
 ## Sizeof
 
-One of the requirements of `sizeof` operator is that it requires that the type is complete, which means that it is not only declared but fully defined. The following code will rely on that to get to know if a type is defined or not:
+`sizeof` operator is our salvation as one of the requirements to be a valid expression is that the type is complete, which means that it is not only declared but fully defined. The following code will rely on that to get to know if a type is defined or not:
 
 ```c++
 // Check if a type is defined or not
@@ -184,47 +189,75 @@ auto is_class_complete(T*) -> std::true_type;
 constexpr auto is_class_complete(...) -> std::false_type;
 ```
 
-The function overloading mechanism, will select the templated-function if and only if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more especific than the non-template version. In addition, this function returns a type that we can identify with a boolean *true*. If `T` is not defined, the second function will be chosen and will return a type that we can identify with boolean *false*. We can easily use this to enhance the 
+The function overloading mechanism, will select the template function if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more specific than the non-template version.
 
+In addition, this function returns a type that we can identify with a Boolean *true*. If `T` is not defined, the second function will be chosen and will return a type that we can identify with Boolean *false*.
 
+## New macros
 
+Let us recap first the things we need to adapt the macros to the new solution:
 
+1. We need a new way of reading the latest value of a meta-class that involves to *jump* history holes.
+2. As a consequence of 1, we need to know the first index of a given meta-variable, so that 1 can stop
 
+The declaration macro is now like this:
 
+```c++
+#define DECLARE_TL(_name) _DECLARE_TL(_name, __COUNTER__)\
+#define _DECLARE_TL(_name, _start)\
+    /* (1) Declare the type list meta-variable and initialize with an empty list */\
+    template<size_t IDX>\
+    struct _name##_history;\
+    \
+    template<> struct _name##_history<_start> {\
+        using type = tmp::typelist<>;\
+    };\
+    \
+    /* (2) Select the current typelist at index "IDX" */\
+    template <size_t IDX>\
+    using _name##_is_defined = decltype(\
+        is_class_complete(std::declval<_name##_history<IDX>*>())\
+    );\         
+    \
+    /* (3) Read from an index IDX */\
+    template<size_t IDX, bool = std::is_same<std::true_type, _name##_is_defined<IDX>>::value>\
+    struct _name##_read;\
+    \
+    template<size_t IDX>\
+    struct _name##_read<IDX, true> {\
+        using type = typename _name##_history<IDX>::type;\
+    };\
+    \
+    template<size_t IDX>\
+    struct _name##_read<IDX, false> {\
+        using type = typename std::conditional< \
+            (IDX > _start),                     /* Should we stop searching? */\
+            typename _name##_read<IDX-1>::type, /* No */\
+            tmp::typelist<>                     /* Yes => failed => empty typelist */\
+        >::type;\
+    };\
+```
 
+At (1) we are doing the same thing as before with the only different that we are now receiving the initial history index from parameter. 
 
+At (2) we are creating a type alias that will tell us if a history entry exists or not. It is done with the previous `sizeof` trick we explained in the previous section. The type of the alias will be `std::true_type` or `std::false_type` depending on if the class is complete or not.
 
-Actually, what we need is to check when a type is complete, not only declared. 
+Finally At (3) we will make use of (2) to have two specializations of the read metafunction. When it is true, we will just return the type associated in the history entry. When it is false, it will recursively try to go back in the history until it reaches the starting history index. In that case it will have failed, otherwise it will end up in the previous case in which the entry did exist.
 
-In the previous code we define two functions. The first one is a templated function whose first parameter is a type T (the target of the test) and as a second parameter and by default it is the size of the type. The second one is a non-templated function that receives as a parameter variadic arguments: it is the fallback. So all is based on the operator `sizeof`. cppreference we can see the 
+The rest of the macros are the same as before:
 
-This SFINAE
+```c++
+#define READ_TL(_name) typename _name##_read<__COUNTER__ - 1>::type
+#define _ADD_TL(_name, _class, _idx)\
+    /* Define the current typelist at index _idx */\
+    template<>\
+    struct _name##_history<_idx> {\
+        using previous = typename _name##_read<_idx-1>::type;\
+        using type = typename push_back<_class, previous>::type;\
+    }
+#define ADD_TL(_name, _class) _ADD_TL(_name, _class, __COUNTER__)
+```
 
-In order to differenciate between a legit specialization and a hole It requires to define a special helper classes to store the initial history index and auxiliar tools to read from the history, that are capable of jumping holes. Let's firm up some of the tools:
+## Full example
 
-1. A 
-
-   ```c++
-   askk
-   ```
-
-   ​
-
-Basically, when we declare the *typelist* meta-variable, we need to store the current value of `__COUNTER__` 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Let's try a full example
