@@ -136,28 +136,22 @@ namespace tmp {
 
 }
 
-#define DECLARE_TL(_name)\
+#define DECLARE_TL(_name) _DECLARE_TL(_name, __COUNTER__)
+#define _DECLARE_TL(_name, _start)\
     namespace tmp {\
-        /* Capture __COUNTER__ */\
-        template<typename>\
-        struct _name##_start_index;\
-        \
-        template<>\
-        struct _name##_start_index<size_t> : std::integral_constant<size_t, __COUNTER__> {\
-        };\
-        \
         /* Create the meta-variable */\
-        template<size_t> \
+        template<size_t IDX> \
         struct _name##_history;\
         \
         /* Initialize it empty */\
-        template<> struct _name##_history<_name##_start_index<size_t>::value> {\
+        template<> struct _name##_history<_start> {\
             using type = tmp::typelist<>;\
         };\
+        \
+        /* Select the current typelist at index "I" */\
         template <size_t I>\
         using _name##_is_defined = decltype(is_class_complete(std::declval<_name##_history<I>*>()));\
         \
-        /* Select the current typelist at index "I" */\
         template<size_t I, bool = std::is_same<std::true_type, _name##_is_defined<I>>::value>\
         struct _name##_read;\
         \
@@ -169,22 +163,21 @@ namespace tmp {
         template<size_t I>\
         struct _name##_read<I, false> {\
             using type = typename std::conditional< \
-                (I > _name##_start_index<size_t>::value), /* Are there more specializations to check? */\
-                typename _name##_read<I-1>::type,     /* yes */\
-                tmp::typelist<>                      /* no => failed => empty typelist */\
+                (I > _start),                     /* Are there more specializations to check? */\
+                typename _name##_read<I-1>::type, /* yes */\
+                tmp::typelist<>                   /* no => failed => empty typelist */\
             >::type;\
         };\
     }
 
-#define READ_TL(_name) typename _name##_read<__COUNTER__>::type
+#define READ_TL(_name) typename _name##_read<__COUNTER__ - 1>::type
 #define _ADD_TL(_name, _class, _idx)\
     /* Define the current typelist at index _idx */\
     namespace tmp {\
         template<>\
         struct _name##_history<_idx> {\
-            using previous = typename _name##_read<_idx-1>::type;\
+            using previous = typename _name##_read<_idx - 1>::type;\
             using type = typename push_back<_class, previous>::type;\
         };\
     }
 #define ADD_TL(_name, _class) _ADD_TL(_name, _class, __COUNTER__)
-
