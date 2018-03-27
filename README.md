@@ -1,10 +1,9 @@
+
 # Global type lists
 
 In the [**previous article**](https://github.com/galtza/hierarchy-inspector), we introduced the metaprogramming construct ***type list***. We learnt how to perform a series of basic operations like *push_back* and *push_front*, or more complex transformations like *max* or *filter*. Finally, we implemented a meta-function called ***find_ancestors*** that given a *type list* TL and a type T, it generates another *type list* containing the ancestors of the type T, in declaration order. 
 
-However, we did not describe how to generate the original **raw *type list*** in the first place. Due to the functional nature of the template metaprogramming, it is difficult to find a way to build these lists other than just using "literals" like in: `using registry = typename tmp::typelist<A, B>::type`.
-
-In this article we will be presenting a technique to construct those *type lists* as the compilation occurs. We will analyse the basics from the perspective of an imperative language and then translate that into template metaprogramming. 
+However, we did not describe how to generate the original ***type list*** in the first place. In this article we will be presenting a technique to construct those *type lists* as the compilation takes place. We will analyse the basic elements we need from the perspective of an imperative language and then translate that into the realm of template metaprogramming. 
 
 All the article pieces of code will be based on the existence of *type lists* and the basic operation *push_back* as it is listed below:
 
@@ -30,7 +29,7 @@ namespace tmp {
 
 In any common imperative programming language, we are used to **declare**, **modify** and **read** the content of a variable. For instance:  
 
-```cpp
+```c++
 #include <vector>
 
 std::vector<int> g_list;
@@ -44,17 +43,17 @@ int main () {
 
 In this piece of code we **declare** a variable named *g_list*, we **modify** it by using *push_back* and we **read** the content that then we assign to another variable. 
 
-In the context of templates, the name "variable" is a bit misleading as, due to its functional nature, there are no side effects, so all things are immutable. Nevertheless, for the sake of argument, we will continue using it but with *meta* as a prefix.
+In the context of templates, the name "variable" is a bit misleading as, due to its functional nature, there are no side effects, so all things are immutable. Nevertheless, for the sake of argument, we will maintain the name but with *meta* as a prefix.
 
-In any case, how do we **declare** a meta-variable? The same way that we were dealing with values in the previous example, now we will deal with types. Hence, a meta-variable holds types, and, in our particular case, *type lists*. One way to specify new types is by using the type alias [*using*](http://en.cppreference.com/w/cpp/language/type_alias). Let us define an empty *type list*:
+So, how do we **declare** a meta-variable? The same way that we were dealing with values in the previous example, now we deal with types. Hence, a meta-variable holds types, and, in our particular case, *type lists*. One way to specify new types is by using the type alias [*using*](http://en.cppreference.com/w/cpp/language/type_alias). Let us define an empty *type list*:
 
 ```c++
 using registry0 = tmp::typelist<>;
 ```
 
-If we want to construct new *type lists* based on this one, we need to create new type aliases. For instance:
+If we want to construct new *type lists* based on this one, we need to create new aliases. For instance:
 
-```cpp
+```c++
 using registry1 = typename tmp::push_back<registry0, int>::type;
 using registry2 = typename tmp::push_back<registry1, char>::type;
 using registry3 = typename tmp::push_back<registry2, float>::type;
@@ -66,7 +65,7 @@ In this piece of code, every new type is based on the previous one. Actually, th
 
 Consider the following: 
 
-```cpp
+```c++
 template<size_t IDX>
 struct a_history;
 
@@ -77,7 +76,7 @@ template<> struct a_history<0> {
 
 This is the **history wrapper** for a meta-variable called ***a*** that will hold a *type list*. In the declaration, the non-type template parameter IDX is the index in the history of the meta-variable. For each new value we will need a new specialization with IDX higher than the previous one. The initial value corresponds to the index 0 and it is an empty *type list*. 
 
-If we would want to add 3 new elements to the meta-variable, we will need 3 new specializations, with index 1, 2 and 3 respectively:
+If we would want to add 3 new elements to the meta-variable, we would need 3 new specializations, with index 1, 2 and 3 respectively:
 
 ```c++
 template<> struct a_history<1> {
@@ -91,7 +90,7 @@ template<> struct a_history<3> {
 };
 ```
 
-Each new entry makes use of the previous entry in the history so that we can *push_back* our new type.
+Each new entry makes use of the previous one to construct a new *type list* by pushing a new type.
 
 Obviously, this is not very useful yet. We need a way to automatically refer to the previous entry and also a way to automatically generate the latest index to add to. 
 
@@ -113,7 +112,7 @@ So, the **declaration** of a *type list* meta-variable that makes use of `__COUN
     }
 ```
 
-Notice that the specialization for the initial value is associated to the index `__COUNTER__` instead of the 0 from previous examples (obviously we cannot assure that `__COUNTER__` has not been called previously, hence the value might be different from 0). 
+Notice that the specialization for the initial value is associated to the index `__COUNTER__` instead of the 0 from previous examples (obviously we cannot assure that `__COUNTER__` has not been expanded previously, hence the value might be different from 0). 
 
 In order to declare a *type list* by using this macro, we do:
 
@@ -123,15 +122,15 @@ DECLARE_TL(meta_variable_2);
 ...
 ```
 
-To **read** the latest value of the meta-class we can use the following macro:
+In order to **read** the latest value of the meta-variable we use the following macro:
 
 ```c++
 #define READ_TL(_name) typename _name##_history<__COUNTER__ - 1>::type
 ```
 
-Notice that we need to subtract 1 to `__COUNTER__`  because it is a post-incremented macro so that after it has been used it changes the value: before invocation `i` and after invocation `i + 1`.
+Notice that we need to subtract 1 to `__COUNTER__`  because it is incremented after expansion, so we need to point back in one position to point to the actual last history slot.
 
-Finally, one possible macro to **modify** the meta-variable by adding a new type to the *type list* could be written like this:
+Finally, a possible macro to **modify** the meta-variable is the addition of a new type to the *type list*:
 
 ```c++
 #define _ADD_TL(_name, _class, _idx)\
@@ -160,47 +159,46 @@ int main () {
 }
 ```
 
-This just works. The invocations to `ADD_TL` could be just classes being registered along the code. 
+This works: the invocations to `ADD_TL` could be just a class that is being registered as the code is processed by the compiler. 
 
 ## It works, does it?
 
 Maybe you noticed that there are some flaws in this implementation:
 
-- multiple `READ_TL` invocations do not work
-- Invocations to `__COUNTER__` between any of the macros do not work
+- multiple `READ_TL` invocations do not work (won't compile)
+- Invocations to `__COUNTER__` between any of the macros do not work (won't compile either)
 
-Both problems are related to the creation of *holes* in the history of a meta-variable. As we call `READ_TL`, we invoke `__COUNTER__` that will increase the value of the counter, hence the next time we try to read the meta-variable, we will use an index that does not exist.
+Both problems are related to the creation of *holes* in the history of a meta-variable. As we call `READ_TL`, we invoke `__COUNTER__` that will increase the value of the counter, hence the next time we try to read the meta-variable, we will use an index that does not exist inside the history of the meta-variable.
 
-The same problem will happen if we invoke `__COUNTER__` between calls to `ADD_TL`, because it will try to grab the previous history entry.
+The same problem will happen if we invoke `__COUNTER__` arbitrarily between calls to `ADD_TL`, because in that call we will try to grab the previous history entry that does not exist.
 
-Nevertheless, there is a solution which is **allowing holes**.
+Despite the flaws, there is still hope. There is a simple solution: **allow holes**.
 
-We need to modify the reading operation so that it skips the holes backwards towards the beginning of the history.
+Basically, we need to be able to read the latest value by *jumping* holes backwards until we reach a not-hole entry or we get to the beginning of the history (Which remember that has the initial empty *type list*).
 
 ## Sizeof
 
-`sizeof` operator is our salvation as one of the requirements to be a valid expression is that the type is complete, which means that it is not only declared but fully defined. The following code will rely on that to get to know if a type is defined or not:
+`sizeof` operator is our salvation. One of the requirements to be a valid expression is that the type specified as a parameter is complete (not only declared: fully defined). Taking advantage of this we can build the f, whiollowing:
 
 ```c++
-// Check if a type is defined or not
-template <typename T, size_t = sizeof(T)>
-auto is_class_complete(T*) -> std::true_type;
+namespace tmp {
 
-constexpr auto is_class_complete(...) -> std::false_type;
+    // Check if a type is defined or not
+    template <typename T, size_t = sizeof(T)>
+    auto is_class_complete(T*) -> std::true_type;
+
+    constexpr auto is_class_complete(...) -> std::false_type;
+
+}
 ```
 
-The function overloading mechanism, will select the template function if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more specific than the non-template version.
+The function overloading mechanism, will select the template function if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more specific than the non-template version, which is the fallback.
 
-In addition, this function returns a type that we can identify with a Boolean *true*. If `T` is not defined, the second function will be chosen and will return a type that we can identify with Boolean *false*.
+In addition, these functions returns types that we can identify with a Boolean *true*, or *false* respectively. If `T` is not defined, the second function will be chosen and will return a type that we can identify with Boolean *false*.
 
 ## New macros
 
-Let us recap first the things we need to adapt the macros to the new solution:
-
-1. We need a new way of reading the latest value of a meta-class that involves to *jump* history holes.
-2. As a consequence of 1, we need to know the first index of a given meta-variable, so that 1 can stop
-
-The declaration macro is now like this:
+The **declaration** and **read** macros are rewritten like this (Check the tagged (1), (2) and (3)):
 
 ```c++
 #define DECLARE_TL(_name) _DECLARE_TL(_name, __COUNTER__)\
@@ -213,11 +211,11 @@ The declaration macro is now like this:
         using type = tmp::typelist<>;\
     };\
     \
-    /* (2) Select the current typelist at index "IDX" */\
+    /* (2) Check if the entry at "IDX" exists */\
     template <size_t IDX>\
     using _name##_is_defined = decltype(\
-        is_class_complete(std::declval<_name##_history<IDX>*>())\
-    );\         
+        tmp::is_class_complete(std::declval<_name##_history<IDX>*>())\
+    );\
     \
     /* (3) Read from an index IDX */\
     template<size_t IDX, bool = std::is_same<std::true_type, _name##_is_defined<IDX>>::value>\
@@ -235,14 +233,19 @@ The declaration macro is now like this:
             typename _name##_read<IDX-1>::type, /* No */\
             tmp::typelist<>                     /* Yes => failed => empty typelist */\
         >::type;\
-    };\
+    }
 ```
 
-At (1) we are doing the same thing as before with the only different that we are now receiving the initial history index from parameter. 
+At *(1)* we are doing the same thing as before with the only different that we are now receiving the initial history index as a parameter. In addition, we are making use of an auxiliar macro which will use the index in several places (that is precisely the reason we need to capture first the current `__COUNTER__`) .
 
-At (2) we are creating a type alias that will tell us if a history entry exists or not. It is done with the previous `sizeof` trick we explained in the previous section. The type of the alias will be `std::true_type` or `std::false_type` depending on if the class is complete or not.
+At *(2)* we are creating a type alias that will tell us if a history entry exists or not. This code is a bit difficult to understand and requires a bit of explanation. As we read from the inside to the outside:
 
-Finally At (3) we will make use of (2) to have two specializations of the read metafunction. When it is true, we will just return the type associated in the history entry. When it is false, it will recursively try to go back in the history until it reaches the starting history index. In that case it will have failed, otherwise it will end up in the previous case in which the entry did exist.
+- With `_name##_history<IDX>` we are refering to the history entry at index IDX.
+- By using `std::declval` like this: `std::declval<_name##_history<I>*>()`, we are (informally speaking) pretending to create a pointer to that type. Formally, as `std::declval` is only declared and not defined it is only valid on unevaluated-contexts, which basically means that it only happens at compile time and it does not really create any object.
+- Then, we use the previous as a parameter to the function `is_class_complete` which is inside a `decltype` specifier meaning again that we are in an unevaluated-context.
+- At the top of everything is tha alias of the previous. 
+
+Finally At *(3)* we will make use of *(2)* to have two specializations of the read meta-function. When it is true, we will just return the type associated in the history entry. When it is false, it will recursively try to go back in the history until it reaches the starting history index. In that case it will have failed, otherwise it will end up in the previous case in which the entry did exist.
 
 The rest of the macros are the same as before:
 
@@ -252,12 +255,79 @@ The rest of the macros are the same as before:
     /* Define the current typelist at index _idx */\
     template<>\
     struct _name##_history<_idx> {\
-        using previous = typename _name##_read<_idx-1>::type;\
-        using type = typename push_back<_class, previous>::type;\
+        using previous = typename _name##_read<_idx - 1>::type;\
+        using type = typename tmp::push_back<_class, previous>::type;\
     }
 #define ADD_TL(_name, _class) _ADD_TL(_name, _class, __COUNTER__)
 ```
 
-## Full example
+## Put all together
 
-Let's try a full example
+This is a full example where you can see all the mentioned techniques:
+
+```c++
+#include <type_traits>
+#include "tmp.h"
+
+// Macros used to create a NOISE macro that forces __COUNTER__ to increase
+#define _WRAP_PASTE(x,y) x##y
+#define _MERGE(x,y) _WRAP_PASTE(x,y)
+#define NOISE auto _MERGE(unused, __COUNTER__) = __COUNTER__
+
+/*
+   Class example hierarchies
+                                    F
+                                   / \
+     A                            H   \
+    / \                          / \   \
+   B   C                        I   J   G
+  /   / \                        \ /   / \
+ T   D   E                        K   L   Z         */
+class A { };                   class F { };
+class B : public A { };        class G : public F { };
+class C : public A { };        class L : public G { };
+class T : public B { };        class Z : public G { };
+class D : public C { };        class H : public F { };
+class E : public C { };        class I : public H { };
+                               class J : public H { };
+                               class K : public I, public J { };
+
+// Declare the meta-variable
+DECLARE_TL(registry);
+
+// Add new types and stress test the solution with calls to __COUNTER__
+ADD_TL(registry, I); NOISE;
+ADD_TL(registry, C);
+ADD_TL(registry, Z); NOISE; NOISE;
+ADD_TL(registry, G); NOISE; NOISE; NOISE;
+ADD_TL(registry, D);
+ADD_TL(registry, F);
+ADD_TL(registry, L); NOISE;
+ADD_TL(registry, C); NOISE; NOISE; NOISE; NOISE; 
+ADD_TL(registry, I); NOISE;
+ADD_TL(registry, A); NOISE;
+ADD_TL(registry, T);
+ADD_TL(registry, B);
+ADD_TL(registry, J);
+ADD_TL(registry, K); NOISE; NOISE; NOISE; NOISE; NOISE;
+ADD_TL(registry, H);
+ADD_TL(registry, E);
+
+int main()
+{
+    // Check that the constructed type list is what we expected
+    using expected_registry = tmp::typelist<I, C, Z, G, D, F, L, C, I, A, T, B, J, K, H, E>;
+    static_assert(
+        std::is_same<READ_TL(registry), expected_registry>::value,
+        "Error: unexpected registry type list"
+    );
+
+    return 0;
+}
+```
+
+#### About this document
+
+March 27, 2018 &mdash; Raul Ramos
+
+[LICENSE](https://github.com/galtza/global-typelist/blob/master/LICENSE)
