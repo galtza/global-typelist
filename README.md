@@ -3,7 +3,7 @@
 
 In the [**previous article**](https://github.com/galtza/hierarchy-inspector), we introduced the metaprogramming construct ***type list***. We learnt how to perform a series of basic operations like *push_back* and *push_front*, or more complex transformations like *max* or *filter*. Finally, we implemented a meta-function called ***find_ancestors*** that given a *type list* TL and a type T, it generates another *type list* containing the ancestors of the type T, in declaration order. 
 
-However, we did not describe how to generate the original ***type list*** in the first place. In this article we will be presenting a technique to construct those *type lists* as the compilation takes place. We will analyse the basic elements we need from the perspective of an imperative language and then translate that into the realm of template metaprogramming. 
+However, we did not describe how to generate the original ***type list*** in the first place. In this article, we will be presenting a technique to construct those *type lists* as the compilation takes place. We will analyse the basic elements we need from the perspective of an imperative language and then translate that into the realm of template metaprogramming. 
 
 All the article pieces of code will be based on the existence of *type lists* and the basic operation *push_back* as it is listed below:
 
@@ -41,7 +41,7 @@ int main () {
 }
 ```
 
-In this piece of code we **declare** a variable named *g_list*, we **modify** it by using *push_back* and we **read** the content that then we assign to another variable. 
+In this piece of code, we **declare** a variable named *g_list*, we **modify** it by using *push_back* and we **read** the content that then we assign to another variable. 
 
 In the context of templates, the name "variable" is a bit misleading as, due to its functional nature, there are no side effects, so all things are immutable. Nevertheless, for the sake of argument, we will maintain the name but with *meta* as a prefix.
 
@@ -74,7 +74,7 @@ template<> struct a_history<0> {
 };
 ```
 
-This is the **history wrapper** for a meta-variable called ***a*** that will hold a *type list*. In the declaration, the non-type template parameter IDX is the index in the history of the meta-variable. For each new value we will need a new specialization with IDX higher than the previous one. The initial value corresponds to the index 0 and it is an empty *type list*. 
+This is the **history wrapper** for a meta-variable called ***a*** that will hold a *type list*. In the declaration, the non-type template parameter IDX is the index in the history of the meta-variable. For each new value, we will need a new specialization with IDX higher than the previous one. The initial value corresponds to the index 0 and it is an empty *type list*. 
 
 If we would want to add 3 new elements to the meta-variable, we would need 3 new specializations, with index 1, 2 and 3 respectively:
 
@@ -143,7 +143,7 @@ Finally, a possible macro to **modify** the meta-variable is the addition of a n
 #define ADD_TL(_name, _class) _ADD_TL(_name, _class, __COUNTER__)
 ```
 
-We create a new specialization for the new index (`__COUNTER__`), but we need to invoke it only once otherwise we would be creating holes. That is the reason that we need an auxiliary macro to do the job: `ADD_TL` grabs the new index from `__COUNTER__` and passes it to the auxiliar macro `_ADD_TL`.
+We create a new specialization for the new index (`__COUNTER__`), but we need to invoke it only once otherwise, we would be creating holes. That is the reason that we need an auxiliary macro to do the job: `ADD_TL` grabs the new index from `__COUNTER__` and passes it to the auxiliary macro `_ADD_TL`.
 
 Then, inside `_ADD_TL` we grab the previous history entry and we use it to add a new type to the list. An example of usage could be this:
 
@@ -178,7 +178,7 @@ Basically, we need to be able to read the latest value by *jumping* holes backwa
 
 ## Sizeof
 
-`sizeof` operator is our salvation. One of the requirements to be a valid expression is that the type specified as a parameter is complete (not only declared: fully defined). Taking advantage of this we can build the f, whiollowing:
+`sizeof` operator is our salvation. One of the requirements to be a valid expression is that the type specified as a parameter is complete (not only declared: fully defined). Taking advantage of this we can build the following:
 
 ```c++
 namespace tmp {
@@ -192,9 +192,9 @@ namespace tmp {
 }
 ```
 
-The function overloading mechanism, will select the template function if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more specific than the non-template version, which is the fallback.
+The function overloading mechanism will select the template function if `T` is defined, as the `sizeof(T)` will be a valid expression and this function is more specific than the non-template version, which is the fallback.
 
-In addition, these functions returns types that we can identify with a Boolean *true*, or *false* respectively. If `T` is not defined, the second function will be chosen and will return a type that we can identify with Boolean *false*.
+In addition, these functions return types that we can identify with a Boolean *true*, or *false* respectively. If `T` is not defined, the second function will be chosen and will return a type that we can identify with Boolean *false*.
 
 ## New macros
 
@@ -236,16 +236,16 @@ The **declaration** and **read** macros are rewritten like this (Check the tagge
     }
 ```
 
-At *(1)* we are doing the same thing as before with the only different that we are now receiving the initial history index as a parameter. In addition, we are making use of an auxiliar macro which will use the index in several places (that is precisely the reason we need to capture first the current `__COUNTER__`) .
+At *(1)* we are doing the same thing as before with the only difference that we are now receiving the initial history index as a parameter. In addition, we are making use of an auxiliary macro which will use the index in several places (that is precisely the reason we need to capture first the current `__COUNTER__`) .
 
 At *(2)* we are creating a type alias that will tell us if a history entry exists or not. This code is a bit difficult to understand and requires a bit of explanation. As we read from the inside to the outside:
 
-- With `_name##_history<IDX>` we are refering to the history entry at index IDX.
-- By using `std::declval` like this: `std::declval<_name##_history<I>*>()`, we are (informally speaking) pretending to create a pointer to that type. Formally, as `std::declval` is only declared and not defined it is only valid on unevaluated-contexts, which basically means that it only happens at compile time and it does not really create any object.
+- With `_name##_history<IDX>` we are referring to the history entry at index IDX.
+- By using `std::declval` like this: `std::declval<_name##_history<I>*>()`, we are (informally speaking) pretending to create a pointer to that type. Formally, as `std::declval` is only declared and not defined it is only valid on unevaluated-contexts, which basically means that it only happens at compile time and it does not really create an object.
 - Then, we use the previous as a parameter to the function `is_class_complete` which is inside a `decltype` specifier meaning again that we are in an unevaluated-context.
-- At the top of everything is tha alias of the previous. 
+- At the top of everything is the alias of the previous. 
 
-Finally At *(3)* we will make use of *(2)* to have two specializations of the read meta-function. When it is true, we will just return the type associated in the history entry. When it is false, it will recursively try to go back in the history until it reaches the starting history index. In that case it will have failed, otherwise it will end up in the previous case in which the entry did exist.
+Finally, At *(3)* we will make use of *(2)* to have two specializations of the read meta-function. When it is true, we will just return the type associated with the history entry. When it is false, it will recursively try to go back in the history until it reaches the starting history index. In that case it will have failed, otherwise, it will end up in the previous case in which the entry did exist.
 
 The rest of the macros are the same as before:
 
@@ -328,6 +328,6 @@ int main()
 
 #### About this document
 
-March 27, 2018 &mdash; Raul Ramos
+March 27, 2018 &mdash; Raúl Ramos
 
 [LICENSE](https://github.com/galtza/global-typelist/blob/master/LICENSE)
