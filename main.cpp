@@ -1,4 +1,26 @@
-#include <type_traits>
+/*
+    MIT License
+
+    Copyright (c) 2019-2020 Raúl Ramos
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+*/
 #include "tmp.h"
 
 // Macros used to create a NOISE macro that forces __COUNTER__ to increase
@@ -24,7 +46,6 @@ class E : public C { };        class I : public H { };
                                class J : public H { };
                                class K : public I, public J { };
 
-
 // Declare the meta-variable
 DECLARE_TL(registry);
 
@@ -46,8 +67,8 @@ ADD_TL(registry, K); NOISE; NOISE; NOISE; NOISE; NOISE;
 ADD_TL(registry, H);
 ADD_TL(registry, E);
 
-int main()
-{
+auto main() -> int {
+
     // Check that the constructed type list is what we expected
     using expected_registry = tmp::typelist<I, C, Z, G, D, F, L, C, I, A, T, B, J, K, H, E>;
     static_assert(
@@ -56,4 +77,4 @@ int main()
     );
 
     return 0;
-} 
+}
